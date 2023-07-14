@@ -177,24 +177,26 @@ void cc_abcd(TA::World& world, const TA::TiledRange1& trange_occ,
   const double n_gflop = flops_per_fma * std::pow(n_occ, 2) *
                          std::pow(n_uocc, 4) / std::pow(1024., 3);
 
+  world.gop.fence();
+  const double init_t1 = madness::wall_time();
   // Construct tensors
   TA::TArrayD t2(world, trange_oovv);
   TA::TArrayD v(world, trange_vvvv);
   TA::TArrayD t2_v;
   // To validate, fill input tensors with random data, otherwise just with 1s
-  if (do_validate) {
-    rand_fill_array(t2);
-    rand_fill_array(v);
-  } else {
-    t2.fill_local(1.0);
-    v.fill_local(1.0);
-  }
+  rand_fill_array(t2);
+  rand_fill_array(v);
+  world.gop.fence();
+  const double init_t2 = madness::wall_time();
+  const double init_time = init_t2 - init_t1;
 
   // Start clock
   world.gop.fence();
-  if (world.rank() == 0)
+  if (world.rank() == 0) {
+    std::cout << "Init time: " << init_time << "\n";
     std::cout << "Starting iterations: "
               << "\n";
+  }
 
   double total_time = 0.0;
   double total_gflop_rate = 0.0;
@@ -203,26 +205,28 @@ void cc_abcd(TA::World& world, const TA::TiledRange1& trange_occ,
   for (int i = 0; i < repeat; ++i) {
     const double start = madness::wall_time();
 
+    world.gop.fence();
     // this is how the user would express this contraction
-    if (false) t2_v("i,j,a,b") = t2("i,j,c,d") * v("a,b,c,d");
+    t2_v("i,j,a,b") = t2("i,j,c,d") * v("a,b,c,d");
+    world.gop.fence();
 
     // this demonstrates to the PaRSEC team what happens under the hood of the
     // expression above
-    if (true) {
-      tensor_contract_444(t2_v, t2, v);
+    // if (true) {
+    //   tensor_contract_444(t2_v, t2, v);
 
-      // to validate replace: false -> true
-      if (do_validate) {
-        // obtain reference result using the high-level DSL
-        TA::TArrayD t2_v_ref;
-        t2_v_ref("i,j,a,b") = t2("i,j,c,d") * v("c,d,a,b");
-        TA::TArrayD error;
-        error("i,j,a,b") = t2_v_ref("i,j,a,b") - t2_v("i,j,a,b");
-        std::cout << "Validating the result (ignore the timings/performance!): "
-                     "||ref_result - result||_2^2 = "
-                  << error("i,j,a,b").squared_norm().get() << std::endl;
-      }
-    }
+    //   // to validate replace: false -> true
+    //   if (do_validate) {
+    //     // obtain reference result using the high-level DSL
+    //     TA::TArrayD t2_v_ref;
+    //     t2_v_ref("i,j,a,b") = t2("i,j,c,d") * v("c,d,a,b");
+    //     TA::TArrayD error;
+    //     error("i,j,a,b") = t2_v_ref("i,j,a,b") - t2_v("i,j,a,b");
+    //     std::cout << "Validating the result (ignore the timings/performance!): "
+    //                  "||ref_result - result||_2^2 = "
+    //               << error("i,j,a,b").squared_norm().get() << std::endl;
+    //   }
+    // }
 
     const double stop = madness::wall_time();
     const double time = stop - start;

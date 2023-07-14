@@ -398,7 +398,7 @@ class cudaEnv {
     for (auto& stream : cuda_streams_) {
       CudaSafeCall(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
     }
-    std::cout << "created " << num_cuda_streams_
+    if(world_->rank()==0) std::cout << "created " << num_cuda_streams_
               << " CUDA streams + 2 I/O streams" << std::endl;
   }
 

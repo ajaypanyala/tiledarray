@@ -189,10 +189,12 @@ void cc_abcd(TA::World& world, const TA::TiledRange1& trange_occ,
       btas::Tensor<T, TA::Range, TiledArray::cuda_um_btas_varray<T>>;
   using CUDAMatrix = TA::DistArray<TA::Tile<CUDATile>>;
 
+  world.gop.fence();
+  const double init_t1 = madness::wall_time();
   // Construct tensors
   CUDAMatrix t2(world, trange_oovv);
   CUDAMatrix v(world, trange_vvvv);
-  CUDAMatrix t2_v;
+  CUDAMatrix t2_v(world, trange_oovv);
   // To validate, fill input tensors with random data, otherwise just with 1s
   //  if (do_validate) {
   //    rand_fill_array(t2);
@@ -202,9 +204,14 @@ void cc_abcd(TA::World& world, const TA::TiledRange1& trange_occ,
   v.fill_local(0.3);
   //  }
 
+  world.gop.fence();
+  const double init_t2 = madness::wall_time();
+  const double init_time = init_t2 - init_t1;
+
   // Start clock
   world.gop.fence();
   if (world.rank() == 0) {
+    std::cout << "TA init time: " << init_time << "\n";
     std::cout << "Starting iterations: "
               << "\n";
   }
@@ -217,7 +224,7 @@ void cc_abcd(TA::World& world, const TA::TiledRange1& trange_occ,
     const double start = madness::wall_time();
 
     // this is how the user would express this contraction
-    t2_v("i,j,a,b") = t2("i,j,c,d") * v("a,b,c,d");
+    t2_v("i,j,a,b") = t2("i,j,c,d") * v("c,d,a,b");
 
     const double stop = madness::wall_time();
     const double time = stop - start;
